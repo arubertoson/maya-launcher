@@ -1,6 +1,10 @@
+# -*- coding: utf8 -*-
+
+# Copyright (C) 2016 - Marcus Albertsson <marcus.arubertoson@gmail.com>
+# This program is Free Software see LICENSE file for details
+
 """
-Mayalauncher is a python launcher that handles various environment setups
-for Autodesk Maya.
+Mayalauncher is a python launcher for Autodesk Maya.
 """
 
 import os
@@ -17,18 +21,19 @@ from pathlib2 import Path
 from shutilwhich import which
 
 
-__version__ = '0.1.2'
+__version__ = '0.1.4'
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.StreamHandler(sys.stdout))
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
+DEBUG = False
 DEVELOPER_NAME = 'Autodesk'
 APPLICATION_NAME = 'Maya'
 APPLICATION_BIN = 'bin'
 
 
-def get_config_directory():
+def get_system_config_directory():
     """
     Return platform specific config directory.
     """
@@ -39,40 +44,9 @@ def get_config_directory():
     else:
         _cfg_directory = Path(os.getenv('XDG_CONFIG_HOME') or '~/.config')
 
-    logger.debug('Trying to fetch configt directory for {}.'
+    logger.debug('Fetching configt directory for {}.'
                  .format(platform.system()))
     return _cfg_directory.joinpath(Path('mayalauncher/.config'))
-
-
-def build_config(config_file=get_config_directory()):
-    """
-    Construct the config object from necessary elements.
-    """
-    config = Config(config_file)
-    application_versions = find_applications_on_system()
-
-    # Add found versions to config if they don't exist. Versions found
-    # in the config file takes presidence over versions found in PATH.
-    for item in application_versions.iteritems():
-        if not config.has_option('executables', item[0]):
-            config.set('executables', item[0], item[1])
-    return config
-
-
-def find_applications_on_system():
-    """
-    Collect maya version from Autodesk PATH if exists, else try looking
-    for custom executable paths from config file.
-    """
-    # First we collect maya versions from the Autodesk folder we presume
-    # is addeed to the system environment "PATH"
-    path_env = os.getenv('PATH').split(os.pathsep)
-    versions = {}
-    for each in path_env:
-        path = Path(each).resolve()
-        if path.name.endswith(DEVELOPER_NAME):
-            versions.update(get_version_exec_mapping_from_path(path))
-    return versions
 
 
 def get_version_exec_mapping_from_path(path):
@@ -92,12 +66,34 @@ def get_version_exec_mapping_from_path(path):
     return versions_exec
 
 
+def find_applications_on_system():
+    """
+    Collect maya version from Autodesk PATH if exists, else try looking
+    for custom executable paths from config file.
+    """
+    # First we collect maya versions from the Autodesk folder we presume
+    # is addeed to the system environment "PATH"
+    path_env = os.getenv('PATH').split(os.pathsep)
+    versions = {}
+    for each in path_env:
+        path = Path(each).expanduser().resolve()
+        if path.name.endswith(DEVELOPER_NAME):
+            versions.update(get_version_exec_mapping_from_path(path))
+    return versions
+
+
 class Config(ConfigParser.RawConfigParser):
     """
-    Config object for Maya Launche.
+    Config object for Maya Launch.
     """
-    EXLUDE_PATTERNS = ['__', '.']
-    ICON_EXTENSIONS = ['xpm', 'png', 'bmp']
+    EXLUDE_PATTERNS = ['__*', '*.']
+    ICON_EXTENSIONS = ['xpm', 'png', 'bmp', 'jpeg']
+
+    # Sections
+    DEFAULTS = 'defaults'
+    EXECUTABLES = 'executables'
+    PATTERNS = 'patterns'
+    ENVIRONMENTS = 'environments'
 
     def __init__(self, config_file, *args, **kwargs):
         ConfigParser.RawConfigParser.__init__(self, *args, **kwargs)
@@ -110,20 +106,27 @@ class Config(ConfigParser.RawConfigParser):
 
     def _create_default_config_file(self):
         """
-        If config file does not exists creat and set default values.
+        If config file does not exists create and set default values.
         """
-        self.add_section('patterns')
-        self.add_section('environments')
-        self.add_section('executables')
-        self.set('environments', 'default', None)
-        self.set('executables', 'default', None)
-        self.set('patterns', 'exclude', ', '.join(self.EXLUDE_PATTERNS))
-        self.set('patterns', 'icon_ext', ', '.join(self.ICON_EXTENSIONS))
+        logger.info('Initialize Maya launcher, creating config file...\n')
+        self.add_section(self.DEFAULTS)
+        self.add_section(self.PATTERNS)
+        self.add_section(self.ENVIRONMENTS)
+        self.add_section(self.EXECUTABLES)
+        self.set(self.DEFAULTS, 'executable', None)
+        self.set(self.DEFAULTS, 'environment', None)
+        self.set(self.PATTERNS, 'exclude', ', '.join(self.EXLUDE_PATTERNS))
+        self.set(self.PATTERNS, 'icon_ext', ', '.join(self.ICON_EXTENSIONS))
 
         self.config_file.parent.mkdir(exist_ok=True)
         self.config_file.touch()
         with self.config_file.open('wb') as f:
             self.write(f)
+
+        # If this function is run inform the user that a new file has been
+        # created.
+        sys.exit('Maya launcher has successfully created config file at:\n'
+                 ' "{}"'.format(str(self.config_file)))
 
     def get_list(self, section, option):
         """
@@ -134,6 +137,12 @@ class Config(ConfigParser.RawConfigParser):
         else:
             raise KeyError('{} with {} does not exist.'.format(section,
                                                                option))
+
+    def get(self, section, option):
+        try:
+            return ConfigParser.RawConfigParser.get(self, section, option)
+        except ConfigParser.NoOptionError:
+            return ''
 
     def edit(self):
         """
@@ -149,118 +158,19 @@ class Config(ConfigParser.RawConfigParser):
             subprocess.call([call, self.config_file])
 
 
-def build_maya_environment():
+def build_config(config_file=get_system_config_directory()):
     """
-    Construct maya environment.
+    Construct the config object from necessary elements.
     """
-    maya_env = MayaEnvironment()
+    config = Config(config_file, allow_no_value=True)
+    application_versions = find_applications_on_system()
 
-    # p = r'G:\dev\maya'
-    # maya_env.exclude_pattern = ('__*', '.*')
-
-    # .. todo:: config must intercept before this so exclude pattern
-    #           and icon extensions can be set.
-    # .. todo:: collect paths from environment and config and pass
-    #           them to maya_env for parsing.
-    # maya_env.traverse_path_for_valid_application_paths(p)
-
-
-def collect_user_environment_paths(env=None):
-    """
-    """
-    if env is None:
-        return []
-
-    # .. todo:: collect and return paths
-
-
-class MayaEnvironment(object):
-
-    MAYA_SCRIPT_PATH = 'MAYA_SCRIPT_PATH'
-    MAYA_PYTHON_PATH = 'PYTHONPATH'
-    MAYA_XBMLANG_PATH = 'XBMLANGPATH'
-    MAYA_PLUG_IN_PATH = 'MAYA_PLUG_IN_PATH'
-
-    # Identifiers
-    PYTHON, MEL = 'py', 'mel'
-
-    def __init__(self, paths=None):
-        self.paths = paths or []
-
-        self.script_paths = EnvironmentList(self.MAYA_SCRIPT_PATH)
-        self.python_paths = EnvironmentList(self.MAYA_PYTHON_PATH)
-        self.xbmlang_paths = EnvironmentList(self.MAYA_XBMLANG_PATH)
-        self.plug_in_paths = EnvironmentList(self.MAYA_PLUG_IN_PATH)
-
-        self.exclude_pattern = []
-        self.icon_extensions = []
-
-    def traverse_path_for_valid_application_paths(self, top_path):
-        """
-        """
-        for p in self._walk(top_path):
-            self.put_path(p)
-
-    def _walk(self, root):
-        logger.debug(self.exclude_pattern)
-        for root, dirs, files in os.walk(str(root), topdown=True):
-
-            # Cut unwanted paths from dirs.
-            dirs_ = []
-            for d in dirs:
-                p = Path(d)
-                if self.is_excluded(p):
-                    continue
-
-                # Dont look further down in packages, assume that
-                # they are set up properly
-                if not self.is_package(p):
-                    dirs_.append(str(p))
-                yield Path(root, str(p)).resolve()
-            dirs[:] = dirs_
-
-    def is_excluded(self, path, exclude=None):
-        """
-        Return if path is in exlude pattern.
-        """
-        for pattern in (exclude or self.exclude_pattern):
-            if path.match(pattern):
-                return True
-        else:
-            return False
-
-    def is_package(self, path):
-        return True if path.glob('__init__.py') else False
-
-    def put_path(self, path):
-        """
-        Given path identify in which environment the path belong to and
-        append it.
-        """
-        logger.debug(path)
-        if self.is_package(path):
-            self.python_paths.append(path)
-            self.xbmlang_paths.extend(self.look_for_xbmlang_paths(path))
-            return
-
-        if path.glob('*.'+self.MEL).next():
-            self.script_paths.append(path)
-
-        if path.glob('*.'+self.PYTHON).next():
-            self.python_paths.append(path)
-
-    def look_for_xbmlang_paths(self, path, extensions=None):
-        """
-        Look for directories with image extensions in given directory and
-        return a list with found dirs.
-
-        .. note:: In deep filestructures this might get pretty slow.
-        """
-        return set([
-            p.parent
-            for ext in extensions or self.icon_extensions
-            for p in path.rglob(ext)
-            ])
+    # Add found versions to config if they don't exist. Versions found
+    # in the config file takes precedence over versions found in PATH.
+    for item in application_versions.iteritems():
+        if not config.has_option(Config.EXECUTABLES, item[0]):
+            config.set(Config.EXECUTABLES, item[0], item[1])
+    return config
 
 
 class EnvironmentList(collections.MutableSequence):
@@ -298,24 +208,198 @@ class EnvironmentList(collections.MutableSequence):
         os.environ[self.name] = os.pathsep.join(self.env)
 
 
+class MayaEnvironment(object):
+
+    MAYA_SCRIPT_PATH = 'MAYA_SCRIPT_PATH'
+    MAYA_PYTHON_PATH = 'PYTHONPATH'
+    MAYA_XBMLANG_PATH = 'XBMLANGPATH'
+    MAYA_PLUG_IN_PATH = 'MAYA_PLUG_IN_PATH'
+
+    # Identifiers
+    PYTHON, MEL = 'py', 'mel'
+
+    def __init__(self, paths=None):
+        self.paths = paths or []
+
+        self.script_paths = EnvironmentList(self.MAYA_SCRIPT_PATH)
+        self.python_paths = EnvironmentList(self.MAYA_PYTHON_PATH)
+        self.xbmlang_paths = EnvironmentList(self.MAYA_XBMLANG_PATH)
+        self.plug_in_paths = EnvironmentList(self.MAYA_PLUG_IN_PATH)
+
+        self.exclude_pattern = []
+        self.icon_extensions = []
+
+    def has_next(self, gen):
+        """
+        Check if generator is empty
+        """
+        try:
+            gen.next(); return True
+        except StopIteration:
+            return False
+
+    def is_excluded(self, path, exclude=None):
+        """
+        Return if path is in exclude pattern.
+        """
+        for pattern in (exclude or self.exclude_pattern):
+            if path.match(pattern):
+                return True
+        else:
+            return False
+
+    def is_package(self, path):
+        return True if self.has_next(path.glob('__init__.py')) else False
+
+    def _walk(self, root):
+        for root, dirs, files in os.walk(str(root), topdown=True):
+
+            # Cut unwanted paths from dirs.
+            dirs_ = []
+            for d in dirs:
+                p = Path(d)
+                if self.is_excluded(p):
+                    continue
+
+                # Dont look further down in packages, assume that
+                # they are set up properly
+                if not self.is_package(p):
+                    dirs_.append(str(p))
+                yield Path(root, str(p)).resolve()
+            dirs[:] = dirs_
+
+    def get_directories_with_extensions(self, start, extensions=None):
+        """
+        Look for directories with image extensions in given directory and
+        return a list with found dirs.
+
+        .. note:: In deep file structures this might get pretty slow.
+        """
+        return set([p.parent for ext in extensions for p in start.rglob(ext)])
+
+    def put_path(self, path):
+        """
+        Given path identify in which environment the path belong to and
+        append it.
+        """
+        if self.is_package(path):
+            self.python_paths.append(path)
+            xbmdirs = self.get_directories_with_extensions(
+                path,
+                self.icon_extensions,
+                )
+            self.xbmlang_paths.extend(xbmdirs)
+            return
+
+        if self.has_next(path.glob('*.'+self.MEL)):
+            logger.debug('adding {} to mel environ.'.format(str(path)))
+            self.script_paths.append(path)
+
+        if self.has_next(path.glob('*.'+self.PYTHON)):
+            logger.debug('adding {} to python environ.'.format(str(path)))
+            self.python_paths.append(path); site.addsitedir(str(path))
+
+        for ext in self.icon_extensions:
+            if self.has_next(path.glob('*.'+ext)):
+                logger.debug('adding {} to xbm environ.'.format(str(path)))
+                self.xbmlang_paths.append(path)
+                break
+
+    def traverse_path_for_valid_application_paths(self, top_path):
+        """
+        For every path beneath top path that does not contain the exclude
+        pattern look for python, mel and images and place them in their
+        corresponding system environments.
+        """
+        self.put_path(Path(top_path))
+        for p in self._walk(top_path):
+            self.put_path(p)
+
+
+def flatten_combine_lists(*args):
+    """
+    Flattens and combines list of lists.
+    """
+    return [p for l in args for p in l]
+
+
+def get_environment_paths(config, env):
+    """
+    Get environment paths from given environment variable.
+    """
+    if env is None:
+        return config.get(Config.DEFAULTS, 'environment')
+
+    # Config option takes precedence over environment key.
+    if config.has_option(Config.ENVIRONMENTS, env):
+        env = config.get(Config.ENVIRONMENTS, env).replace(' ', '').split(';')
+    else:
+        env = os.getenv(env)
+        if env:
+            env = env.split(os.pathsep)
+    return env
+
+
+def build_maya_environment(config, env=None, arg_paths=None):
+    """
+    Construct maya environment.
+    """
+    maya_env = MayaEnvironment()
+    maya_env.exclude_pattern = config.get_list(Config.PATTERNS, 'exclude')
+    maya_env.icon_extensions = config.get_list(Config.PATTERNS, 'icon_ext')
+
+    env = get_environment_paths(config, env)
+    if not env and arg_paths is None:
+        return logger.info('Using maya factory environment setup.')
+
+    logger.debug('Launching with addon paths: {}'.format(arg_paths))
+    logger.debug('Launching with environment paths: {}'.format(env))
+
+    if arg_paths:
+        arg_paths = arg_paths.split(' ')
+    for directory in flatten_combine_lists(env, arg_paths or ''):
+        maya_env.traverse_path_for_valid_application_paths(directory)
+    return maya_env
+
+
+def get_executable_choices(versions):
+    """
+    Return available Maya releases.
+    """
+    return [k for k in versions if not k.startswith(Config.DEFAULTS)]
+
+
+def launch(exec_, file_=None):
+    """
+    Launches application.
+    """
+    logger.debug('launcher executable: {}'.format(exec_))
+    if not exec_:
+        raise RuntimeError(
+            'Mayalauncher could not find a maya executable, please specify'
+            'a path in the config file (-e) or add the {} directory location'
+            'to your PATH system environment.'.format(DEVELOPER_NAME)
+           )
+
+    # Launch Maya
+    if not DEBUG:
+        subprocess.Popen(exec_ if file_ is None else [exec_, file_])
+
+
 def main():
     """
+    Main function of maya launcher. Parses the arguments and tries to
+    launch maya with given them.
     """
-
-    version_choices = [
-        k for k in dict(config.items(_config_exec))
-        if not k.startswith('default')
-        ]
+    config = build_config()
 
     parser = argparse.ArgumentParser(
         description="""
-        Maya Launcher is a useful maya launcher that delas with all
-        the PYTHONPATH/MAYA_SCRIPT_PATH.. etc under the hood.
+        Maya Launcher is a useful script that tries to deal with all
+        important system environments maya uses when starting up.
 
-        It aims to streamline the startup process of maya to a simple
-        "mayalch my_test_file.ma" (provided the default env has been set)
-        or create a shortcut with target set to
-        "mayalch -env MAYA_DEFAULT" or something similar.
+        It aims to streamline the setup process of maya to a simple string
+        instead of constantly having to make sure paths are setup correctly.
         """
         )
 
@@ -331,7 +415,8 @@ def main():
     parser.add_argument(
         '-v', '--version',
         type=str,
-        choices=version_choices,
+        choices=get_executable_choices(dict(config.items(
+                                            Config.EXECUTABLES))),
         help="""
         Launch Maya with given version.
         """)
@@ -339,7 +424,8 @@ def main():
     parser.add_argument(
         '-env', '--environment',
         metavar='env',
-        default=config.get(_config_env, 'default'),
+        type=str,
+        default=config.get(Config.DEFAULTS, 'environment'),
         help="""
         Launch maya with given environemnt, if no environment is specified
         will try to use default value. If not default value is specified
@@ -347,7 +433,7 @@ def main():
         """)
 
     parser.add_argument(
-        '-p', '--paths',
+        '-p', '--path',
         metavar='path',
         type=str,
         nargs='+',
@@ -369,62 +455,22 @@ def main():
     # Parse the arguments
     args = parser.parse_args()
     if args.edit:
-        return open_file(str(config_path))
+        return config.edit()
 
-    # Get executbale from either default value in config or given value.
+    # Get executable from either default value in config or given value.
     # If neither exists exit launcher.
     if args.version is None:
-        exec_default = config.get(_config_exec, 'default')
-        if exec_default is None:
-            raise OSError('No valid Maya executables could be found.')
+        exec_default = config.get(Config.DEFAULTS, 'executable')
+        if not exec_default and config.items(Config.EXECUTABLES):
+            items = dict(config.items(Config.EXECUTABLES))
+            exec_ = items[sorted(items.keys(), reverse=True)[0]]
         else:
             exec_ = exec_default
     else:
-        exec_ = config.get(_config_exec, args.version)
+        exec_ = config.get(Config.EXECUTABLES, args.version)
 
-    # If we get here its time to find the necessary launch ingridients.
-    def collect_paths(env):
-        return [Path(os.path.expanduser(p)) for p in env.split(os.pathsep)]
-
-    paths = []
-    if args.environment is not None:
-        env = os.environ.get(args.environment, None)
-        if env is not None:
-            paths.extend(collect_paths(env))
-        else:
-            paths.extend(collect_paths(config.get(_config_env, 'default')))
-
-    if args.path:
-        paths.extend(args.path)
-
-    launch(exec_, paths, file_=args.file)
-
-
-def launch(exec_, paths=None, file_=None):
-    """
-    Launches application.
-    """
-    if exec_ is None:
-        raise RuntimeError(
-            'Mayalauncher could not find a maya executable, please specify'
-            'a path in the config file (-e) or add the {} directory location'
-            'to your PATH system environment.'.format(DEVELOPER_NAME)
-           )
-
-    # Launch Maya
-    subprocess.Popen(exec_ if file_ is None else [exec_, file_])
-
-    # .. todo:: find and set maya project
-
-
-def find_maya_project():
-    """
-    """
-    # traverse where script is launched from backwards and look for
-    # workspace.mel files.
-
-    # If found set the project to that directory.
-    # else use maya default.
+    build_maya_environment(config, args.environment, args.path)
+    launch(exec_, args.file)
 
 
 if __name__ == '__main__':

@@ -39,7 +39,7 @@ setup(
     license='MIT',
 
     py_modules=['mayalauncher'],
-    install_requires=['pathlib2', 'shutilwhich'],
+    install_requires=['pathlib2', 'shutilwhich', 'argparse'],
     entry_points={
         'console_scripts': ['mayal = mayalauncher:main']
         }
