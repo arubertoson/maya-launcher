@@ -25,9 +25,9 @@ setup(
     long_description=long_description,
     classifiers=[
         'Development Status :: 3 - Alpha',
-        'Intended Audience :: Autodesk Maya users.',
-        'Topic :: Maya Application Launcher :: Environment/Project startup.',
-        'License :: MIT License',
+        'Topic :: Utilities',
+        'Topic :: Multimedia :: Graphics',
+        'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 2.7',
     ],
