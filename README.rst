@@ -4,14 +4,16 @@ Maya Launcher
 Maya launcher was developed for easy environment setup between maya
 sessions. It's easy to use but requires some setup.
 
+
 Features
-~~~~~~~~
+--------
 
 -  Utilize *target* in shortcut properties to specify arguments.
 -  Given paths are identified and added to the correct system variable.
 -  Start several maya sessions with different environment setups.
 -  Easily controllable through the commandline/terminal.
 -  Highly customizable.
+
 
 Installation
 ------------
@@ -20,8 +22,10 @@ Installation
 
     $ pip install mayalauncher
 
+
 Options
 -------
+
 .. code:: bash
 
     $ mayal -h
@@ -59,8 +63,9 @@ Usage
 To make use of *mayalauncher* some setup is required and there is mainly
 two ways to work with it: environments and a config file
 
-Environment
-^^^^^^^^^^^
+
+Environments
+^^^^^^^^^^^^
 
 1. Add your Autodesk folder to your system PATH.
 
@@ -86,12 +91,8 @@ Environment
     $ mayalauncher some_file.ma -env YOUR_ENV -v 2016
 
 
-Config
-^^^^^^
-
-
-Using the Config file
-~~~~~~~~~~~~~~~~~~~~~
+Config file
+^^^^^^^^^^^
 
 When running mayalauncher the first time it will not try to launch maya.
 It will create the config file. To edit the file use the command:

@@ -21,7 +21,7 @@ from pathlib2 import Path
 from shutilwhich import which
 
 
-__version__ = '0.1.5b'
+__version__ = '0.1.6'
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.StreamHandler(sys.stdout))
