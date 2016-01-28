@@ -8,7 +8,7 @@ if sys.version_info[:2] < (2, 7):
 here = os.path.abspath(os.path.dirname(__file__))
 
 # Get long description
-with open(os.path.join(here, 'README.md'), 'r') as f:
+with open(os.path.join(here, 'README.rst'), 'r') as f:
     long_description = f.read()
 
 # Get version string.
@@ -41,6 +41,6 @@ setup(
     py_modules=['mayalauncher'],
     install_requires=['pathlib2', 'shutilwhich', 'argparse'],
     entry_points={
-        'console_scripts': ['mayal = mayalauncher:main']
+        'console_scripts': ['mayalauncher = mayalauncher:main']
         }
 )
