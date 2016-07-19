@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 from setuptools import setup
 
@@ -12,15 +13,17 @@ with open(os.path.join(here, 'README.rst'), 'r') as f:
     long_description = f.read()
 
 # Get version string.
-try:
-    import mayalauncher
-except ImportError:
-    raise RuntimeError('Unable to find mayaluncher module.')
+version_regexp = re.compile(ur"\b__version__ = ['\"]([^'\"]*)['\"]")
+with open(os.path.join(here, 'mayalauncher.py')) as f:
+    match = version_regexp.search(f.read(), re.M)
 
+    if not match:
+        raise RuntimeError('Unable to find version string.')
+    version = match.group(1)
 
 setup(
     name='mayalauncher',
-    version=mayalauncher.__version__,
+    version=version,
     description='Autodesk Maya application launcher.',
     long_description=long_description,
     classifiers=[

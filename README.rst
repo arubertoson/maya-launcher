@@ -26,7 +26,7 @@ Installation
 Options
 -------
 
-.. code:: bash
+.. code::
 
     $ mayal -h
     usage: mayal [-h] [-v {2015}] [-env env] [-p path [path ...]] [-e] [file]
@@ -65,7 +65,7 @@ two ways to work with it: environments and a config file
 
 
 Environments
-^^^^^^^^^^^^
+------------
 
 1. Add your Autodesk folder to your system PATH.
 
@@ -92,7 +92,7 @@ Environments
 
 
 Config file
-^^^^^^^^^^^
+-----------
 
 When running mayalauncher the first time it will not try to launch maya.
 It will create the config file. To edit the file use the command:
@@ -109,8 +109,8 @@ your preferred text editor perhaps.
     # This is the default state of the config.
 
     [defaults]
-    executable
-    environment
+    executable=
+    environment=
 
     [patterns]
     exclude = __*, *.
@@ -158,6 +158,7 @@ This is how it might look edited.
     2015=%PROGRAMFILES%/Autodesk/Maya2015/bin/maya.exe
     2014=%PROGRAMFILES%/Autodesk/Maya2014/bin/maya.exe
     2011=%PROGRAMFILES%/Autodesk/Maya2011/bin/maya.exe
+
 
 Resources
 ---------
