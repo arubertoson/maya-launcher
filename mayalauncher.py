@@ -1,3 +1,4 @@
+#!/usr/bin/python
 # -*- coding: utf8 -*-
 
 # Copyright (C) 2016 - Marcus Albertsson <marcus.arubertoson@gmail.com>
@@ -6,7 +7,8 @@
 """
 Mayalauncher is a python launcher for Autodesk Maya.
 """
-
+import time
+import tempfile
 import os
 import sys
 import site
@@ -18,19 +20,23 @@ import ConfigParser
 import collections
 
 from pathlib2 import Path
-from shutilwhich import which
 
 
-__version__ = '0.1.6'
+__version__ = '0.1.8'
+
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.StreamHandler(sys.stdout))
-logger.setLevel(logging.INFO)
 
 DEBUG = False
+logger.setLevel(logging.DEBUG if DEBUG else logging.INFO)
+
+
 DEVELOPER_NAME = 'Autodesk'
 APPLICATION_NAME = 'Maya'
 APPLICATION_BIN = 'bin'
+LOGFILE_NAME = 'maya_output'
+LOGFILE_DIR = tempfile.gettempdir()
 
 
 def get_system_config_directory():
@@ -54,16 +60,18 @@ def get_version_exec_mapping_from_path(path):
     Find valid application version from given path object and return
     a mapping of version, executable.
     """
-    versions_exec = {}
-    for d in path.iterdir():
-        if not d.name.startswith(APPLICATION_NAME):
+    version_executable = {}
+    logger.debug('Getting exes from path: {}'.format(path))
+
+    for sub_dir in path.iterdir():
+        if not sub_dir.name.startswith(APPLICATION_NAME):
             continue
 
-        release = d.name.split(APPLICATION_NAME)[-1]
-        exec_ = which(APPLICATION_NAME.lower(),
-                      path=str(d.joinpath(APPLICATION_BIN)))
-        versions_exec[release] = exec_
-    return versions_exec
+        release = sub_dir.name.split(APPLICATION_NAME)[-1]
+        executable = Path(sub_dir, 'bin').glob('maya.exe').next()
+        version_executable[release] = str(executable)
+    logger.debug('Found exes for: {}'.format(version_executable.keys()))
+    return version_executable
 
 
 def find_applications_on_system():
@@ -76,8 +84,11 @@ def find_applications_on_system():
     path_env = os.getenv('PATH').split(os.pathsep)
     versions = {}
     for each in path_env:
-        path = Path(each).expanduser().resolve()
+        # path = Path(each).expanduser().resolve()
+        path = Path(os.path.expandvars(each))
         if path.name.endswith(DEVELOPER_NAME):
+            if not path.exists():
+                continue
             versions.update(get_version_exec_mapping_from_path(path))
     return versions
 
@@ -196,13 +207,16 @@ class EnvironmentList(collections.MutableSequence):
         return self.env[item]
 
     def __setitem__(self, idx, item):
-        self.env[idx] = str(item); self.update()
+        self.env[idx] = str(item)
+        self.update()
 
     def __delitem__(self, item):
-        self.env.remove(str(item)); self.update()
+        self.env.remove(str(item))
+        self.update()
 
     def insert(self, idx, value):
-        self.env.insert(idx, str(value)); self.update()
+        self.env.insert(idx, str(value))
+        self.update()
 
     def update(self):
         os.environ[self.name] = os.pathsep.join(self.env)
@@ -216,7 +230,7 @@ class MayaEnvironment(object):
     MAYA_PLUG_IN_PATH = 'MAYA_PLUG_IN_PATH'
 
     # Identifiers
-    PYTHON, MEL = 'py', 'mel'
+    PYTHON, MEL, PLUGIN = 'py', 'mel', 'plug-in'
 
     def __init__(self, paths=None):
         self.paths = paths or []
@@ -234,7 +248,8 @@ class MayaEnvironment(object):
         Check if generator is empty
         """
         try:
-            gen.next(); return True
+            gen.next()
+            return True
         except StopIteration:
             return False
 
@@ -265,6 +280,8 @@ class MayaEnvironment(object):
                 # they are set up properly
                 if not self.is_package(p):
                     dirs_.append(str(p))
+                else:
+                    continue
                 yield Path(root, str(p)).resolve()
             dirs[:] = dirs_
 
@@ -287,21 +304,26 @@ class MayaEnvironment(object):
             xbmdirs = self.get_directories_with_extensions(
                 path,
                 self.icon_extensions,
-                )
+            )
             self.xbmlang_paths.extend(xbmdirs)
             return
 
-        if self.has_next(path.glob('*.'+self.MEL)):
-            logger.debug('adding {} to mel environ.'.format(str(path)))
+        if self.has_next(path.glob('*.' + self.MEL)):
+            logger.debug('MEL: {}'.format(str(path)))
             self.script_paths.append(path)
 
-        if self.has_next(path.glob('*.'+self.PYTHON)):
-            logger.debug('adding {} to python environ.'.format(str(path)))
-            self.python_paths.append(path); site.addsitedir(str(path))
+        if self.has_next(path.glob('*.' + self.PYTHON)):
+            logger.debug('PYTHONPATH: {}'.format(str(path)))
+            self.python_paths.append(path)
+            site.addsitedir(str(path))
+
+        if self.PLUGIN in list(path.iterdir()):
+            logger.debug('PLUG-IN: {}'.format(str(path)))
+            self.plug_in_paths.append(path)
 
         for ext in self.icon_extensions:
-            if self.has_next(path.glob('*.'+ext)):
-                logger.debug('adding {} to xbm environ.'.format(str(path)))
+            if self.has_next(path.glob('*.' + ext)):
+                logger.debug('XBM: {}.'.format(str(path)))
                 self.xbmlang_paths.append(path)
                 break
 
@@ -337,7 +359,7 @@ def get_environment_paths(config, env):
         env = os.getenv(env)
         if env:
             env = env.split(os.pathsep)
-    return env
+    return [i for i in env if i]
 
 
 def build_maya_environment(config, env=None, arg_paths=None):
@@ -369,21 +391,84 @@ def get_executable_choices(versions):
     return [k for k in versions if not k.startswith(Config.DEFAULTS)]
 
 
-def launch(exec_, file_=None):
+class WatchFile(object):
+
+    def __init__(self):
+        self.path = os.path.join(LOGFILE_DIR, LOGFILE_NAME)
+        self.dir, self.file = os.path.split(self.path)
+        if not os.path.exists(self.dir):
+            os.mkdir(self.dir)
+        self.create()
+
+        self.current_line = 0
+        self.current_time = self.time
+
+    def check(self):
+        if self.is_modified:
+            self.on_change()
+            self.current_time = self.time
+
+    @property
+    def exists(self):
+        return os.path.exists(self.path)
+
+    @property
+    def is_modified(self):
+        return self.time > self.current_time
+
+    @property
+    def time(self):
+        if self.exists:
+            return os.path.getmtime(self.path)
+
+    def create(self):
+        counter = 1
+        while self.exists:
+            self.path = '{}{}'.format(self.path, counter)
+            counter += 1
+        open(self.path, 'w').close()
+
+    def on_change(self):
+        with open(self.path, 'r') as _:
+            lines = _.readlines()
+            print(''.join(lines[self.current_line:]))
+            self.current_line = len(lines)
+
+    def stop(self):
+        os.remove(self.path)
+
+
+def launch(exec_, args):
     """
     Launches application.
     """
-    logger.debug('launcher executable: {}'.format(exec_))
     if not exec_:
         raise RuntimeError(
             'Mayalauncher could not find a maya executable, please specify'
             'a path in the config file (-e) or add the {} directory location'
             'to your PATH system environment.'.format(DEVELOPER_NAME)
-           )
+       )
 
     # Launch Maya
-    if not DEBUG:
-        subprocess.Popen(exec_ if file_ is None else [exec_, file_])
+    if DEBUG:
+        return
+
+    watched = WatchFile()
+
+    cmd = [exec_] if args.file is None else [exec_, args.file]
+    cmd.extend(['-hideConsole', '-log', watched.path])
+    if args.debug:
+        cmd.append('-noAutoloadPlugins')
+    maya = subprocess.Popen(cmd)
+
+    while True:
+        time.sleep(1)
+
+        maya.poll()
+        watched.check()
+        if maya.returncode is not None:
+            watched.stop()
+            break
 
 
 def main():
@@ -401,7 +486,7 @@ def main():
         It aims to streamline the setup process of maya to a simple string
         instead of constantly having to make sure paths are setup correctly.
         """
-        )
+    )
 
     parser.add_argument(
         'file',
@@ -452,6 +537,13 @@ def main():
         Edit config file.
         """)
 
+    parser.add_argument(
+        '-d', '--debug',
+        action='store_true',
+        help="""
+        Start maya in dev mode, autoload on plugins are turned off.
+        """)
+
     # Parse the arguments
     args = parser.parse_args()
     if args.edit:
@@ -470,7 +562,8 @@ def main():
         exec_ = config.get(Config.EXECUTABLES, args.version)
 
     build_maya_environment(config, args.environment, args.path)
-    launch(exec_, args.file)
+    logger.info('\nDone building maya environment, launching: \n{}\n'.format(exec_))
+    launch(exec_, args)
 
 
 if __name__ == '__main__':
