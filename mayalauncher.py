@@ -22,14 +22,14 @@ import collections
 from pathlib2 import Path
 
 
-__version__ = '0.1.8'
+__version__ = '0.1.9'
 
 
 logger = logging.getLogger(__name__)
-logger.addHandler(logging.StreamHandler(sys.stdout))
+logger.setLevel(logging.INFO)
+
 
 DEBUG = False
-logger.setLevel(logging.DEBUG if DEBUG else logging.INFO)
 
 
 DEVELOPER_NAME = 'Autodesk'
@@ -218,6 +218,13 @@ class EnvironmentList(collections.MutableSequence):
         self.env.insert(idx, str(value))
         self.update()
 
+    def append(self, value):
+        if str(value) in self.env:
+            return
+        else:
+            self.env.append(str(value))
+        self.update()
+
     def update(self):
         os.environ[self.name] = os.pathsep.join(self.env)
 
@@ -278,10 +285,8 @@ class MayaEnvironment(object):
 
                 # Dont look further down in packages, assume that
                 # they are set up properly
-                if not self.is_package(p):
+                if not self.is_package(Path(root, str(p))):
                     dirs_.append(str(p))
-                else:
-                    continue
                 yield Path(root, str(p)).resolve()
             dirs[:] = dirs_
 
@@ -300,7 +305,9 @@ class MayaEnvironment(object):
         append it.
         """
         if self.is_package(path):
-            self.python_paths.append(path)
+            logger.debug('PYTHON PACKAGE: {}'.format(path))
+            self.python_paths.append(path.parent)
+            site.addsitedir(str(path.parent))
             xbmdirs = self.get_directories_with_extensions(
                 path,
                 self.icon_extensions,
@@ -461,6 +468,11 @@ def launch(exec_, args):
         cmd.append('-noAutoloadPlugins')
     maya = subprocess.Popen(cmd)
 
+    # Maya 2016 stupid clic ipm
+    # os.environ['MAYA_DISABLE_CLIC_IPM'] = '1'
+    # os.environ['MAYA_DISABLE_CIP'] = '1'
+    # os.environ['MAYA_OPENCL_IGNORE_DRIVER_VERSION'] = '1'
+
     while True:
         time.sleep(1)
 
@@ -548,6 +560,9 @@ def main():
     args = parser.parse_args()
     if args.edit:
         return config.edit()
+
+    if args.debug:
+        logger.setLevel(logging.DEBUG)
 
     # Get executable from either default value in config or given value.
     # If neither exists exit launcher.
