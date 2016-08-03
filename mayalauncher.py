@@ -22,9 +22,6 @@ import collections
 from pathlib2 import Path
 
 
-__version__ = '0.1.9'
-
-
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -479,8 +476,11 @@ def launch(exec_, args):
         maya.poll()
         watched.check()
         if maya.returncode is not None:
-            watched.stop()
-            break
+            if not maya.returncode == 0:
+                maya = subprocess.Popen(cmd)
+            else:
+                watched.stop()
+                break
 
 
 def main():
