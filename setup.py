@@ -18,7 +18,7 @@ except IOError:
 
 setup(
     name='mayalauncher',
-    version='0.2.0.dev2',
+    version='0.2.0',
     description='Autodesk Maya application launcher.',
     long_description=long_description,
     author='Marcus Albertsson',
