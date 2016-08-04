@@ -19,14 +19,14 @@ import subprocess
 import ConfigParser
 import collections
 
-from pathlib2 import Path
+from pathlib import Path
 
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-DEBUG = False
+DEBUG = True
 
 
 DEVELOPER_NAME = 'Autodesk'
@@ -81,8 +81,9 @@ def find_applications_on_system():
     path_env = os.getenv('PATH').split(os.pathsep)
     versions = {}
     for each in path_env:
-        # path = Path(each).expanduser().resolve()
         path = Path(os.path.expandvars(each))
+        if not path.exists():
+            continue
         if path.name.endswith(DEVELOPER_NAME):
             if not path.exists():
                 continue
