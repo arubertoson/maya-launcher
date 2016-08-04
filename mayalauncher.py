@@ -22,11 +22,8 @@ import collections
 from pathlib import Path
 
 
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-
-DEBUG = True
 
 
 DEVELOPER_NAME = 'Autodesk'
@@ -455,7 +452,7 @@ def launch(exec_, args):
        )
 
     # Launch Maya
-    if DEBUG:
+    if args.debug:
         return
 
     watched = WatchFile()
