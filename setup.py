@@ -18,7 +18,7 @@ except IOError:
 
 setup(
     name='mayalauncher',
-    version='0.2.0.dev1',
+    version='0.2.0.dev2',
     description='Autodesk Maya application launcher.',
     long_description=long_description,
     author='Marcus Albertsson',
@@ -28,16 +28,16 @@ setup(
     py_modules=['mayalauncher'],
     extras_require={
         ':python_version=="2.6"': [
-            'argsparse', 'pathlib2', 'shutilwhich',
+            'argsparse', 'pathlib', 'shutilwhich',
         ],
         ':python_version=="2.7"': [
-            'pathlib2', 'shutilwhich',
+            'pathlib', 'shutilwhich',
         ],
         ':python_version=="3.2"': [
-            'pathlib2', 'shutilwhich',
+            'pathlib', 'shutilwhich',
         ],
         ':python_version=="3.5"': [
-            'pathlib2', 'shutilwhich',
+            'pathlib', 'shutilwhich',
         ],
     },
     include_package_data=True,
