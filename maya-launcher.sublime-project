@@ -5,13 +5,25 @@
 			"file_regex": "^[ ]*File \"(...*?)\", line ([0-9]*)",
 			"name": "Anaconda Python Builder",
 			"selector": "source.python",
-			"shell_cmd": "\"python\" -u \"$file\""
+			"shell_cmd": "\"G:\\dev\\.venv\\mayalauncher\\Scripts\\python\" -u \"$file\""
+		},
+		{
+			"name": "Launcher Pyhon builder",
+			"selector": "source.python",
+			"shell_cmd": "\"G:\\dev\\.venv\\mayalauncher\\Scripts\\python\" -m \"mayalauncher\"",
+			"working_dir": "${project_path}"
 		}
 	],
 	"folders":
 	[
 		{
+			"follow_symlinks": true,
 			"path": "."
 		}
-	]
+	],
+	"settings":
+	{
+		"python_interpreter": "G:\\dev\\.venv\\mayalauncher\\Scripts\\python",
+		"test_command": "pew in mayalauncher nosetests"
+	}
 }

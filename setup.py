@@ -43,7 +43,7 @@ setup(
     include_package_data=True,
     zip_safe=False,
     entry_points={
-        'console_scripts': ['mayalauncher = mayalauncher:main']},
+        'console_scripts': ['mayalauncher = mayalauncher.__main__:main']},
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Programming Language :: Python :: 2',
